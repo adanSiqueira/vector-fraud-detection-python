@@ -180,13 +180,11 @@ Client
 └─────────┘     └─────────┘
 
 Faiss IVF+SQ8 index pre-built during docker build
-
-
-Total declared resources:
-
 ```
-1.00 CPU · 350 MB RAM
-```
+
+
+Total declared resources: **1.00 CPU · 350 MB RAM**
+
 
 Fully compliant with the competition rules.
 
