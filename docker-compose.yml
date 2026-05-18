@@ -16,8 +16,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.20"
-          memory: "30M"
+          cpus: "0.10"
+          memory: "20M"
 
   api1:
     image: adansiq/rinha2026-python:latest
@@ -37,8 +37,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.50"
-          memory: "280M"
+          cpus: "0.45"
+          memory: "165M"
 
   api2:
     image: adansiq/rinha2026-python:latest
@@ -62,5 +62,5 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.40"
-          memory: "160M"
+          cpus: "0.45"
+          memory: "165M"
