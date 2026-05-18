@@ -1,16 +1,5 @@
 """
-Fraud Detection API — performance-optimized edition
-Stack: Starlette + orjson + Faiss IVF+SQ8 + granian
-
-Key optimisations
-─────────────────
-1. Starlette instead of FastAPI        → removes DI/routing overhead (~1-2 ms)
-2. orjson for JSON decode/encode       → 3-10x faster than stdlib json
-3. No Pydantic — raw dict access       → removes validation overhead (~1-3 ms)
-4. Pre-allocated C-contiguous float32  → zero per-request numpy allocation
-5. Thread-local query buffer           → safe under granian multi-worker
-6. Faiss IVF+SQ8                       → ~64 MB RAM (vs hnswlib ~721 MB)
-7. granian ASGI server                 → Rust I/O loop, lower p99 than uvicorn
+Fraud Detection API  performance-optimized edition
 """
 
 import os
@@ -30,7 +19,7 @@ from starlette.routing import Route
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-# ── Config ────────────────────────────────────────────────────────────────────
+# Config
 INDEX_PATH  = os.getenv("INDEX_PATH",  "/data/index.faiss")
 LABELS_PATH = os.getenv("LABELS_PATH", "/data/labels.npy")
 NPROBE      = int(os.getenv("NPROBE", "10"))   # clusters searched per query
@@ -38,7 +27,7 @@ K           = 5
 THRESHOLD   = 0.6
 DIM         = 14
 
-# ── Normalization constants ───────────────────────────────────────────────────
+# Normalization constants
 MAX_AMOUNT              = 10_000.0
 MAX_INSTALLMENTS        = 12.0
 AMOUNT_VS_AVG_RATIO     = 10.0
@@ -47,7 +36,7 @@ MAX_KM                  = 1_000.0
 MAX_TX_COUNT_24H        = 20.0
 MAX_MERCHANT_AVG_AMOUNT = 10_000.0
 
-# ── MCC risk table ────────────────────────────────────────────────────────────
+#MCC risk table 
 MCC_RISK: dict[str, float] = {
     "5411": 0.15, "5812": 0.30, "5912": 0.20, "5944": 0.45,
     "7801": 0.80, "7802": 0.75, "7995": 0.85, "4511": 0.35,
@@ -55,11 +44,11 @@ MCC_RISK: dict[str, float] = {
 }
 MCC_DEFAULT = 0.5
 
-# ── Global state ──────────────────────────────────────────────────────────────
+#Global state 
 _index:  faiss.Index | None = None
 _labels: np.ndarray  | None = None
 
-# ── Thread-local pre-allocated query buffer ───────────────────────────────────
+#Thread-local pre-allocated query buffer 
 _tls = threading.local()
 
 def _get_query_buf() -> np.ndarray:
@@ -70,7 +59,7 @@ def _get_query_buf() -> np.ndarray:
     return buf
 
 
-# ── Startup / shutdown ────────────────────────────────────────────────────────
+# Startup / shutdown 
 async def startup():
     global _index, _labels
 
@@ -89,7 +78,7 @@ async def shutdown():
     logger.info("Shutting down")
 
 
-# ── Vectorization ─────────────────────────────────────────────────────────────
+# Vectorization 
 def _vectorize_into(data: dict, buf: np.ndarray) -> None:
     """Fill buf[0] in-place with the 14-dim normalised feature vector."""
     tx    = data["transaction"]
@@ -140,7 +129,7 @@ def _vectorize_into(data: dict, buf: np.ndarray) -> None:
     v = merch["avg_amount"] / MAX_MERCHANT_AVG_AMOUNT; b[13] = v if v < 1.0 else 1.0
 
 
-# ── Handlers ──────────────────────────────────────────────────────────────────
+#  Handlers 
 async def handle_ready(request: Request) -> Response:
     if _index is None or _labels is None:
         return Response(b'{"status":"loading"}', status_code=503,
@@ -174,7 +163,7 @@ async def handle_fraud_score(request: Request) -> Response:
     )
 
 
-# ── App ───────────────────────────────────────────────────────────────────────
+# App 
 app = Starlette(
     routes=[
         Route("/ready",       handle_ready,       methods=["GET"]),

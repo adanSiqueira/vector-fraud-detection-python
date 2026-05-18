@@ -1,11 +1,6 @@
 """
-test_vectorize.py — validates the vectorization logic against the two
-canonical examples from DETECTION_RULES.md.
-
-Run from the project root:
-    python test_vectorize.py
-
-No server or index needed — pure Python math only.
+validates the vectorization logic against the two examples
+No server or index needed, pure Python math only.
 """
 
 import sys
@@ -13,10 +8,10 @@ import os
 import numpy as np
 
 # ── Make app/ importable without installing ───────────────────────────────────
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "app"))
+sys.path.insert(0, os.path.dirname(__file__))
 
 # Import the raw vectorizer (dict-based, no Pydantic)
-from main import _vectorize_into, DIM
+from app.main import _vectorize_into, DIM
 
 # ─────────────────────────────────────────────────────────────────────────────
 def vectorize(data: dict) -> list[float]:

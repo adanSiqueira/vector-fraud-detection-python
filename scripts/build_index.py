@@ -1,25 +1,9 @@
 """
-build_index.py — run ONCE at Docker build time.
+Gotta be run ONCE at Docker build time.
 
 Reads resources/references.json.gz and builds a Faiss IVF+SQ8 index:
   /data/index.faiss  — Faiss binary index (~66 MB on disk, ~64 MB in RAM)
   /data/labels.npy   — int8 numpy array (1=fraud, 0=legit, ~3 MB)
-
-Why Faiss IVF+SQ8 instead of hnswlib?
-──────────────────────────────────────
-hnswlib with M=8 loads ~721 MB into RAM — impossible inside the 160 MB
-container limit. Faiss IVF+SQ8 solves this two ways:
-
-  IVF (Inverted File Index): partitions the 3M vectors into `nlist` clusters.
-  At query time only `nprobe` clusters are searched (default: 10 out of 1000),
-  making each query O(N/nlist * nprobe) instead of O(N). Fast and RAM-efficient.
-
-  SQ8 (Scalar Quantizer 8-bit): compresses each float32 dimension (4 bytes)
-  to uint8 (1 byte) — a 4x reduction. Recall vs IVFFlat: ~97% on our vectors.
-  RAM footprint drops from ~222 MB (IVFFlat) to ~64 MB (SQ8).
-
-  Together: 64 MB index + 3 MB labels + ~50 MB Python/granian = ~117 MB total
-  per container, comfortably inside the 160 MB limit.
 """
 
 import argparse

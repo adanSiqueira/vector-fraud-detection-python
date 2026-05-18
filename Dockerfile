@@ -31,7 +31,7 @@ RUN python build_index.py \
 #   Faiss IVF+SQ8 index : ~64 MB
 #   labels.npy           : ~3 MB
 #   Python + granian     : ~50 MB
-#   Total                : ~117 MB  ✅ fits inside 160 MB limit
+#   Total                : ~117 MB  : fits inside 160 MB limit
 # =============================================================================
 FROM python:3.12-slim AS runtime
 
@@ -47,7 +47,7 @@ COPY app/ .
 # Pre-built Faiss index
 COPY --from=builder /data /data
 
-# ── Environment ───────────────────────────────────────────────────────────────
+#  Env vars 
 ENV INDEX_PATH=/data/index.faiss
 ENV LABELS_PATH=/data/labels.npy
 ENV PORT=8000
@@ -56,7 +56,7 @@ ENV NPROBE=10
 
 EXPOSE 8000
 
-# ── Granian — Rust ASGI server ────────────────────────────────────────────────
+# Granian - Rust ASGI server
 # 1 worker: index is ~64 MB; 2 workers would use ~128 MB + overhead = OOM risk
 # The load balancer round-robins across api1 and api2, so we still have
 # 2 parallel workers at the system level.
