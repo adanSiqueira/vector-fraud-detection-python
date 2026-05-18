@@ -1,0 +1,29 @@
+# Python
+venv/
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Docs
+README.md
+README.pt-BR.md
+notes.md
+
+# Test files
+test_vectorize.py
+loadtest.js
+results.json
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

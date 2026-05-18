@@ -1,0 +1,34 @@
+# Virtual environments
+venv/
+.venv/
+env/
+
+
+# Python cache
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+
+# Reference data 
+resources/references.json.gz
+
+# Locally built index — regenerated during docker build
+/data/
+/tmp/rinha_data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# My annotations
+notes.md
+
+# k6 test output
+results.json

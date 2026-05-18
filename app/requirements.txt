@@ -1,0 +1,19 @@
+# ── ASGI server (Rust-based — replaces uvicorn) ───────────────────────────────
+granian==2.7.4
+
+# ── Web framework (raw Starlette — no FastAPI overhead) ───────────────────────
+starlette==0.41.3
+
+# ── JSON (Rust-based — 3-10× faster than stdlib json) ────────────────────────
+orjson==3.11.9
+
+# ── Vector search ─────────────────────────────────────────────────────────────
+faiss-cpu==1.11.0
+
+# ── Numerics ──────────────────────────────────────────────────────────────────
+numpy==2.4.4
+
+# ── Build-time only (index builder needs these, not the runtime API) ──────────
+# These are NOT needed in the runtime image — see Dockerfile stage separation.
+# Listed here so `pip install -r requirements.txt` works for local dev too.
+anyio==4.7.0            # starlette async dep
