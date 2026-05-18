@@ -1,8 +1,6 @@
-# =============================================================================
-# Stage 1 — builder
-# Installs deps (including faiss-cpu), builds the IVF+SQ8 index from
-# references.json.gz. No compiler needed — faiss-cpu ships pre-built wheels.
-# =============================================================================
+# builder
+# Installs deps, builds the IVF+SQ8 index from
+# references.json.gz. No compiler needed, faiss-cpu ships pre-built wheels.
 FROM python:3.12-slim AS builder
 
 WORKDIR /build
@@ -14,9 +12,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY scripts/build_index.py .
 COPY resources/ /resources/
 
-# Build the Faiss IVF+SQ8 index (~3-5 min, outputs ~66 MB index.faiss)
+# Build the Faiss IVF+SQ8 index, outputs ~66 MB index.faiss
 # nlist=1000: 1000 clusters over 3M vectors
-# nprobe=10:  search 10 clusters per query (1% of data) — fast + accurate
+# nprobe=10:  search 10 clusters per query (1% of data) , fast + accurate
 RUN python build_index.py \
         --references /resources/references.json.gz \
         --output-dir /data \
@@ -24,15 +22,14 @@ RUN python build_index.py \
         --nprobe 10
 
 
-# =============================================================================
-# Stage 2 — runtime
+
+# runtime
 # Lean image: no compiler, no pip. Everything copied pre-built from builder.
 # Memory budget per container:
 #   Faiss IVF+SQ8 index : ~64 MB
 #   labels.npy           : ~3 MB
 #   Python + granian     : ~50 MB
 #   Total                : ~117 MB  : fits inside 160 MB limit
-# =============================================================================
 FROM python:3.12-slim AS runtime
 
 WORKDIR /app
