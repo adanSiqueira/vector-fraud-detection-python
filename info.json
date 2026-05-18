@@ -1,0 +1,7 @@
+{
+    "participants": ["Adan Siqueira"],
+    "social": ["https://github.com/adanSiqueira"],
+    "source-code-repo": "https://github.com/adanSiqueira/vector-fraud-detection-python",
+    "stack": ["python", "starlette", "granian", "hnswlib", "nginx"],
+    "open_to_work": false
+}
