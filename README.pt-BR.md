@@ -151,7 +151,7 @@ Essa redução tornou as restrições da competição alcançáveis.
 ## Arquitetura
 
 ```
-Cliente
+Client
   │  POST /fraud-score  (porta 9999)
   ▼
 ┌──────────────────────────────────┐
@@ -171,13 +171,11 @@ Cliente
 └─────────┘     └─────────┘
 
 Índice Faiss IVF+SQ8 pré-construído durante o docker build
-
-
-Total de recursos declarados:
-
 ```
-1.00 CPU · 350 MB RAM
-```
+
+
+Total de recursos declarados: **1.00 CPU · 350 MB RAM**
+
 
 Totalmente em conformidade com as regras da competição.
 
