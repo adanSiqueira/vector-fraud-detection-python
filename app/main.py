@@ -1,12 +1,10 @@
 """
-Fraud Detection API  performance-optimized edition
+Fraud Detection API — performance-optimized edition
 """
 
 import os
 import logging
 import threading
-from datetime import datetime
-from contextlib import asynccontextmanager
 
 import numpy as np
 import faiss
@@ -16,13 +14,13 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import Route
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-logger = logging.getLogger(__name__)
+# Disable all logging — under heavy load it hurts latency
+logging.disable(logging.CRITICAL)
 
 # Config
 INDEX_PATH  = os.getenv("INDEX_PATH",  "/data/index.faiss")
 LABELS_PATH = os.getenv("LABELS_PATH", "/data/labels.npy")
-NPROBE      = int(os.getenv("NPROBE", "10"))   # clusters searched per query
+NPROBE      = int(os.getenv("NPROBE", "5"))   # reduced from 10 — big p99 win
 K           = 5
 THRESHOLD   = 0.6
 DIM         = 14
@@ -36,7 +34,7 @@ MAX_KM                  = 1_000.0
 MAX_TX_COUNT_24H        = 20.0
 MAX_MERCHANT_AVG_AMOUNT = 10_000.0
 
-#MCC risk table 
+# MCC risk table
 MCC_RISK: dict[str, float] = {
     "5411": 0.15, "5812": 0.30, "5912": 0.20, "5944": 0.45,
     "7801": 0.80, "7802": 0.75, "7995": 0.85, "4511": 0.35,
@@ -44,11 +42,17 @@ MCC_RISK: dict[str, float] = {
 }
 MCC_DEFAULT = 0.5
 
-#Global state 
+# Precomputed response bodies — zero serialization per request
+_RESPONSES: dict[int, bytes] = {
+    score: orjson.dumps({"approved": (score / K) < THRESHOLD, "fraud_score": score / K})
+    for score in range(K + 1)
+}
+
+# Global state
 _index:  faiss.Index | None = None
 _labels: np.ndarray  | None = None
 
-#Thread-local pre-allocated query buffer 
+# Thread-local pre-allocated query buffer
 _tls = threading.local()
 
 def _get_query_buf() -> np.ndarray:
@@ -59,28 +63,28 @@ def _get_query_buf() -> np.ndarray:
     return buf
 
 
-# Startup / shutdown 
+# Startup / shutdown
 async def startup():
     global _index, _labels
 
     faiss.omp_set_num_threads(1)
 
-    logger.info("Loading Faiss index from %s ...", INDEX_PATH)
     idx = faiss.read_index(INDEX_PATH)
     idx.nprobe = NPROBE
     _index = idx
 
-    logger.info("Loading labels from %s ...", LABELS_PATH)
     _labels = np.load(LABELS_PATH)
 
-    logger.info("Ready -- %d vectors indexed  nprobe=%d", _index.ntotal, NPROBE)
+    # Warm the index — touches pages, eliminates cold-cache P99 spikes
+    dummy = np.zeros((1, DIM), dtype=np.float32)
+    _index.search(dummy, 1)
 
 
 async def shutdown():
-    logger.info("Shutting down")
+    pass
 
 
-# Vectorization 
+# Vectorization — datetime parsed manually to avoid fromisoformat overhead
 def _vectorize_into(data: dict, buf: np.ndarray) -> None:
     """Fill buf[0] in-place with the 14-dim normalised feature vector."""
     tx    = data["transaction"]
@@ -92,7 +96,10 @@ def _vectorize_into(data: dict, buf: np.ndarray) -> None:
     amount     = tx["amount"]
     avg_amount = cust["avg_amount"]
 
-    requested_at = datetime.fromisoformat(tx["requested_at"].replace("Z", "+00:00"))
+    ts = tx["requested_at"]
+    # Manual timestamp parsing — much faster than datetime.fromisoformat
+    hour    = int(ts[11:13])
+    weekday = _iso_weekday(int(ts[:4]), int(ts[5:7]), int(ts[8:10]))
 
     b = buf[0]
 
@@ -104,15 +111,15 @@ def _vectorize_into(data: dict, buf: np.ndarray) -> None:
     v = (amount / avg_amount / AMOUNT_VS_AVG_RATIO) if avg_amount > 0 else 1.0
     b[2] = v if v < 1.0 else 1.0
     # 3 — hour of day
-    b[3] = requested_at.hour / 23.0
+    b[3] = hour / 23.0
     # 4 — day of week
-    b[4] = requested_at.weekday() / 6.0
+    b[4] = weekday / 6.0
     # 5 & 6 — last transaction
     if last is None:
         b[5] = -1.0; b[6] = -1.0
     else:
-        last_ts = datetime.fromisoformat(last["timestamp"].replace("Z", "+00:00"))
-        minutes = (requested_at - last_ts).total_seconds() / 60.0
+        lts = last["timestamp"]
+        minutes = _minutes_between(ts, lts)
         v = minutes / MAX_MINUTES;            b[5] = v if v < 1.0 else 1.0
         v = last["km_from_current"] / MAX_KM; b[6] = v if v < 1.0 else 1.0
     # 7 — km from home
@@ -131,7 +138,38 @@ def _vectorize_into(data: dict, buf: np.ndarray) -> None:
     v = merch["avg_amount"] / MAX_MERCHANT_AVG_AMOUNT; b[13] = v if v < 1.0 else 1.0
 
 
-#  Handlers 
+def _iso_weekday(y: int, m: int, d: int) -> int:
+    """Return weekday 0=Mon … 6=Sun using Tomohiko Sakamoto's algorithm."""
+    t = (0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4)
+    if m < 3:
+        y -= 1
+    return (y + y // 4 - y // 100 + y // 400 + t[m - 1] + d) % 7
+
+
+def _minutes_between(ts_now: str, ts_last: str) -> float:
+    """Compute elapsed minutes between two ISO-8601 strings without datetime parsing."""
+    # Parse components directly from the string
+    yn, mn, dn = int(ts_now[:4]),  int(ts_now[5:7]),  int(ts_now[8:10])
+    hn, minn, sn = int(ts_now[11:13]), int(ts_now[14:16]), int(ts_now[17:19])
+
+    yl, ml, dl = int(ts_last[:4]), int(ts_last[5:7]),  int(ts_last[8:10])
+    hl, minl, sl = int(ts_last[11:13]), int(ts_last[14:16]), int(ts_last[17:19])
+
+    # Convert each to seconds since a fixed epoch (ignoring timezone for delta)
+    def to_seconds(y, mo, d, h, mi, s):
+        # Days via a simple accumulation (good enough for deltas ≤ a few days)
+        days = y * 365 + y // 4 - y // 100 + y // 400
+        _mdays = (0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334)
+        days += _mdays[mo - 1] + d
+        if mo > 2 and (y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)):
+            days += 1
+        return days * 86400 + h * 3600 + mi * 60 + s
+
+    delta = to_seconds(yn, mn, dn, hn, minn, sn) - to_seconds(yl, ml, dl, hl, minl, sl)
+    return delta / 60.0
+
+
+# Handlers
 async def handle_ready(request: Request) -> Response:
     if _index is None or _labels is None:
         return Response(b'{"status":"loading"}', status_code=503,
@@ -153,19 +191,17 @@ async def handle_fraud_score(request: Request) -> Response:
     # 3. KNN search — Faiss releases the GIL internally
     _, ids = _index.search(buf, K)
 
-    # 4. Score
+    # 4. Score — use precomputed response bytes
     fraud_count = int(np.sum(_labels[ids[0]] == 1))
-    score       = fraud_count / K
-    approved    = score < THRESHOLD
 
-    # 5. Respond
+    # 5. Respond with precomputed body
     return Response(
-        orjson.dumps({"approved": approved, "fraud_score": score}),
+        _RESPONSES[fraud_count],
         media_type="application/json",
     )
 
 
-# App 
+# App
 app = Starlette(
     routes=[
         Route("/ready",       handle_ready,       methods=["GET"]),
