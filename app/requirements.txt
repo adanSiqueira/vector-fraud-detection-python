@@ -2,7 +2,8 @@
 granian==2.7.4
 
 # Web framework (raw Starlette)
-starlette==0.41.3
+# starlette==0.41.3
+starlette==0.42.0
 anyio==4.7.0            # starlette async dep
 
 # JSON handling (Rust-based — 3-10× faster than stdlib json) 
