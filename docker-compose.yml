@@ -51,14 +51,13 @@ services:
     depends_on:
       api1:
         condition: service_healthy
-    command: ["sh", "-c", "sleep 15 && python -m granian --interface asgi --host 0.0.0.0 --port 8000 --workers 1 --runtime-threads 1 main:app"]
     healthcheck:
       test: ["CMD", "python", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
       interval: 5s
       timeout: 3s
       retries: 20
-      start_period: 75s
+      start_period: 60s
     deploy:
       resources:
         limits:
