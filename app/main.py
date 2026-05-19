@@ -63,6 +63,8 @@ def _get_query_buf() -> np.ndarray:
 async def startup():
     global _index, _labels
 
+    faiss.omp_set_num_threads(1)
+
     logger.info("Loading Faiss index from %s ...", INDEX_PATH)
     idx = faiss.read_index(INDEX_PATH)
     idx.nprobe = NPROBE
