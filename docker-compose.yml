@@ -1,6 +1,14 @@
 version: "3.9"
 
+# Resource budget:
+#   nginx : 0.05 CPU + 20 MB
+#   api1  : 0.475 CPU + 165 MB
+#   api2  : 0.475 CPU + 165 MB
+#   ──────────────────────────
+#   Total : 1.00 CPU + 350 MB  ✅
+
 services:
+
   nginx:
     image: nginx:1.27-alpine
     container_name: lb
@@ -16,7 +24,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.10"
+          cpus: "0.05"
           memory: "20M"
 
   api1:
@@ -26,10 +34,9 @@ services:
       - "8000"
     environment:
       - PORT=8000
-      - EF_QUERY=50
+      - NPROBE=10
     healthcheck:
-      test: ["CMD", "python", "-c",
-             "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/ready || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -37,7 +44,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.45"
+          cpus: "0.475"
           memory: "165M"
 
   api2:
@@ -52,8 +59,7 @@ services:
       api1:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c",
-             "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/ready || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -61,5 +67,5 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.45"
+          cpus: "0.475"
           memory: "165M"
